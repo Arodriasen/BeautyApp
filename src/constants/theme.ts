@@ -1,55 +1,45 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://unistyl.es/), etc.
+ * Estilo "Tocador": revista de moda sobre el tocador. Fondo rosa empolvado muy suave,
+ * tinta ciruela y un tono baya para lo importante. La app es siempre clara.
  */
 
-import '@/global.css';
-
-import { Platform } from 'react-native';
-
 export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
+  text: '#2A1A21',
+  textSecondary: '#8A7179',
+  /** Fondo de las pantallas. */
+  background: '#FCF6F7',
+  /** Tarjetas, filas y campos sobre el fondo. */
+  backgroundElement: '#FFFFFF',
+  backgroundSelected: '#F5E1E8',
+  border: '#EEDDE3',
+  primary: '#9E2B5B',
+  onPrimary: '#FFFFFF',
+  primarySoft: '#F5E1E8',
+  danger: '#B3261E',
+  vigente: '#4F7A5A',
+  caducaPronto: '#B86E14',
+  caducaProntoSoft: '#FBEAD6',
+  caducado: '#B3261E',
+  caducadoSoft: '#F8DCDA',
+  neutro: '#A8949B',
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ThemeColor = keyof typeof Colors;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+/**
+ * Familias cargadas en el layout raíz. En Android, con fuentes propias, el peso se elige
+ * por familia (no con `fontWeight`), así que cada peso tiene la suya.
+ */
+export const Fonts = {
+  /** Títulos: Bodoni Moda en cursiva. */
+  display: 'BodoniModa_600SemiBold_Italic',
+  /** Iniciales de las miniaturas y números grandes. */
+  displayRecta: 'BodoniModa_600SemiBold',
+  body: 'Jost_400Regular',
+  medium: 'Jost_500Medium',
+  semibold: 'Jost_600SemiBold',
+  mono: 'monospace',
+} as const;
 
 export const Spacing = {
   half: 2,
@@ -61,5 +51,11 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const Radius = {
+  /** Tarjetas y filas de lista. */
+  tarjeta: 18,
+  /** Campos de texto. */
+  campo: 14,
+  /** Botones, chips y etiquetas: completamente redondeados. */
+  pastilla: 999,
+} as const;

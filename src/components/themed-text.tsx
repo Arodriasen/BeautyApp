@@ -1,57 +1,64 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  /**
+   * - `title` / `subtitle`: Bodoni en cursiva (titulares).
+   * - `marca`: la marca en versalitas espaciadas, como en el envase.
+   * - el resto: Jost.
+   */
+  type?: 'default' | 'medium' | 'title' | 'subtitle' | 'small' | 'smallBold' | 'marca' | 'code';
   themeColor?: ThemeColor;
 };
 
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
   const theme = useTheme();
-
-  return <Text style={[{ color: theme[themeColor ?? 'text'] }, styles[type], style]} {...rest} />;
+  const color = theme[themeColor ?? (type === 'marca' ? 'textSecondary' : 'text')];
+  return <Text style={[{ color }, styles[type], style]} {...rest} />;
 }
 
 const styles = StyleSheet.create({
+  default: {
+    fontFamily: Fonts.body,
+    fontSize: 16,
+    lineHeight: 23,
+  },
+  medium: {
+    fontFamily: Fonts.medium,
+    fontSize: 16,
+    lineHeight: 23,
+  },
   small: {
+    fontFamily: Fonts.body,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 500,
   },
   smallBold: {
+    fontFamily: Fonts.semibold,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 700,
   },
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: 500,
+  marca: {
+    fontFamily: Fonts.semibold,
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
   },
   title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+    fontFamily: Fonts.display,
+    fontSize: 36,
+    lineHeight: 42,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 14,
-  },
-  linkPrimary: {
-    lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
+    fontFamily: Fonts.display,
+    fontSize: 27,
+    lineHeight: 33,
   },
   code: {
     fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
     fontSize: 12,
   },
 });
