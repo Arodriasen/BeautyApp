@@ -29,12 +29,12 @@ export default function PestanasLayout() {
           ),
           headerRight: () => (
             <Pressable
-              onPress={() => router.push('/avisos')}
+              onPress={() => router.push('/ajustes')}
               hitSlop={12}
               accessibilityRole="button"
-              accessibilityLabel="Avisos"
+              accessibilityLabel="Ajustes"
               style={{ marginRight: Spacing.three }}>
-              <MaterialCommunityIcons name="bell-outline" size={24} color={Colors.primary} />
+              <MaterialCommunityIcons name="cog-outline" size={24} color={Colors.primary} />
             </Pressable>
           ),
         }}

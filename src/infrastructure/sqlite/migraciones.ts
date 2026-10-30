@@ -64,5 +64,22 @@ export async function migrar(db: SQLiteDatabase): Promise<void> {
     version = 5;
   }
 
+  if (version < 6) {
+    await db.execAsync(`
+      ALTER TABLE productos ADD COLUMN ingredientes TEXT;
+      ALTER TABLE productos ADD COLUMN analisis_ingredientes TEXT;
+    `);
+    version = 6;
+  }
+
+  // La versión 7 creaba las tablas de looks; la función se quitó y la 8 las borra donde existan.
+  if (version < 8) {
+    await db.execAsync(`
+      DROP TABLE IF EXISTS pasos_look;
+      DROP TABLE IF EXISTS looks;
+    `);
+    version = 8;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${version}`);
 }

@@ -27,22 +27,53 @@ Cuando salga el QR, pulsa **`a`**. La primera vez instala Expo Go en el emulador
 
 ## Generar el APK para instalar (build propia)
 
-No necesita el PC una vez instalada: lleva todo dentro. Sube `version` en `app.json` antes de cada APK nuevo.
+No necesita el PC una vez instalada: lleva todo dentro.
 
 ```powershell
-cd G:_SourceBeautyApp
-npx expo prebuild --platform android      # solo si cambió app.json, iconos o se añadió una librería nativa
-cd android
-$env:JAVA_HOME = "G:JDK"; .gradlew assembleRelease
+cd G:\_Source\BeautyApp
+npm run apk                  # sube la versión (1.0.1 → 1.0.2), compila y deja dist\Tocador-1.0.2.apk
+npm run apk -- --movil       # además lo copia a /sdcard/APK del móvil conectado (no lo instala)
+npm run apk -- --sin-subir   # recompila la versión actual
+npm run apk -- --menor       # 1.0.5 → 1.1.0
+npm run apk -- --solo-arm64  # APK ligero (~37 MB) solo para móviles arm64 como el suyo
 ```
 
-El APK sale en `androidappuildoutputsapkeleaseapp-release.apk`. Para dejarlo en la carpeta APK del móvil (conectado por USB):
+El script hace `expo prebuild`, reescribe `android\local.properties` (CMake 3.31.6) y lanza Gradle. Si la build falla, deja `app.json` con la versión que tenía. Por defecto lleva todos los procesadores (~130 MB, lo que pide Google Play); con `--solo-arm64` queda en unos 37 MB.
+
+Requisito ya preparado en este PC: rutas largas de Windows activadas (`LongPathsEnabled=1`) y CMake 3.31.6 en el SDK.
+
+## Google Play (prueba interna)
+
+Paquete: `com.arodriasen.tocador` (definitivo: no se puede cambiar tras la primera subida).
+
+**Clave de subida (una sola vez):**
 
 ```powershell
-& G:AndroidSdkplatform-toolsadb.exe push androidappuildoutputsapkeleaseapp-release.apk /sdcard/APK/Tocador-1.0.0.apk
+pwsh -File scripts\crear-clave-subida.ps1    # pide la contraseña; crea G:\_Claves\tocador-subida.jks
 ```
 
-Requisitos ya preparados en este PC: rutas largas de Windows activadas (`LongPathsEnabled=1`) y CMake 3.31.6 en el SDK, indicado en `androidlocal.properties` (`cmake.dir`). Si `prebuild --clean` borra la carpeta `android`, hay que volver a crear ese `local.properties`.
+Guarda las propiedades `TOCADOR_UPLOAD_*` en `%USERPROFILE%\.gradle\gradle.properties` (fuera del repo). El plugin `plugins/firma-subida.js` las usa para firmar APK y AAB de release; sin ellas firma con la de depuración. **Copia de seguridad del .jks y la contraseña.** Google firma lo que distribuye con su propia clave (Play App Signing), así que un APK instalado a mano no se actualiza desde Play ni al revés: hay que desinstalar.
+
+**Cada versión:**
+
+```powershell
+npm run aab                  # sube la versión y deja dist\Tocador-X.Y.Z.aab
+```
+
+Play Console → Tocador → Pruebas → Prueba interna → Crear versión → subir el `.aab`.
+
+**Primera vez en Play Console:**
+
+1. *Crear aplicación*: nombre Tocador, idioma español (España), aplicación, gratuita.
+2. *Prueba interna → Testers*: crear lista con los correos de Google (Gmail) de quien vaya a usarla.
+3. *Crear versión*: aceptar Play App Signing, subir el `.aab`, notas de la versión, guardar y publicar.
+4. *Panel → Configurar la app* (pide rellenarlo antes o después de la primera versión):
+   - Política de privacidad: `https://github.com/Arodriasen/BeautyApp/blob/master/PRIVACIDAD.md` (tiene que estar en GitHub).
+   - Acceso a la app: todo accesible sin credenciales. Anuncios: no. Público objetivo: 18+.
+   - Seguridad de los datos: no recoge ni comparte datos (todo se queda en el móvil; los servicios externos solo reciben el código o el texto buscado). Cifrado en tránsito: sí (HTTPS).
+   - Clasificación de contenido: cuestionario → utilidad/productividad, todo "no".
+   - Categoría: Belleza.
+5. En *Prueba interna → Testers* copiar el **enlace de participación** y abrirlo en el móvil de cada tester: aceptar y luego instalar desde Play Store.
 
 ## Teclas en la terminal de Expo
 

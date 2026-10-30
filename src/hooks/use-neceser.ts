@@ -4,10 +4,15 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ServicioAvisos } from '@/application/avisos/ServicioAvisos';
+import { ServicioIngredientes } from '@/application/ingredientes/ServicioIngredientes';
 import { ServicioCompra } from '@/application/ServicioCompra';
 import { ServicioEscaneo } from '@/application/ServicioEscaneo';
 import { ServicioNeceser } from '@/application/ServicioNeceser';
+import { BuscadorEnCadena } from '@/infrastructure/catalogo/BuscadorEnCadena';
 import { CatalogoEnCadena } from '@/infrastructure/catalogo/CatalogoEnCadena';
+import { InciApi } from '@/infrastructure/catalogo/InciApi';
+import { MakeupApi } from '@/infrastructure/catalogo/MakeupApi';
+import { ObfIngredientes } from '@/infrastructure/catalogo/ObfIngredientes';
 import { OpenBeautyFacts } from '@/infrastructure/catalogo/OpenBeautyFacts';
 import { UpcItemDb } from '@/infrastructure/catalogo/UpcItemDb';
 import { FotosEnDispositivo } from '@/infrastructure/fotos/FotosEnDispositivo';
@@ -17,10 +22,20 @@ import { SqliteCompraRepositorio } from '@/infrastructure/sqlite/SqliteCompraRep
 import { SqliteProductoRepositorio } from '@/infrastructure/sqlite/SqliteProductoRepositorio';
 import { SqliteUnidadRepositorio } from '@/infrastructure/sqlite/SqliteUnidadRepositorio';
 
-/** Orden de consulta: primero la especializada en cosmética, luego la general. */
-const catalogo = new CatalogoEnCadena([new OpenBeautyFacts(), new UpcItemDb()]);
+const obf = new OpenBeautyFacts();
+const upc = new UpcItemDb();
+/** Por código: primero la especializada en cosmética, luego la general. */
+const catalogo = new CatalogoEnCadena([obf, upc]);
+/**
+ * Por nombre: Open Beauty Facts y Makeup API (catálogo con tonos y colores) a la vez;
+ * UPCitemdb solo si salen pocos (cupo de 100 al día).
+ */
+const makeup = new MakeupApi();
+const buscador = new BuscadorEnCadena([obf, makeup], [upc]);
 const fotos = new FotosEnDispositivo();
 const notificador = new ExpoNotificador();
+const fuenteIngredientes = new ObfIngredientes();
+const inciApi = new InciApi();
 
 export function useAvisos(): ServicioAvisos {
   const db = useSQLiteContext();
@@ -55,9 +70,30 @@ export function useCompra(): ServicioCompra {
   return useMemo(() => new ServicioCompra(new SqliteCompraRepositorio(db), neceser, randomUUID), [db, neceser]);
 }
 
+export function useIngredientes(): ServicioIngredientes {
+  const db = useSQLiteContext();
+  return useMemo(
+    () =>
+      new ServicioIngredientes(new SqliteProductoRepositorio(db), new SqliteAjustesRepositorio(db), fuenteIngredientes, inciApi),
+    [db],
+  );
+}
+
+/** Los términos a evitar, recargados cada vez que la pantalla gana el foco. */
+export function useEvitar(): string[] {
+  const ingredientes = useIngredientes();
+  const [evitar, setEvitar] = useState<string[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      ingredientes.obtenerAjustes().then((a) => setEvitar(a.evitar));
+    }, [ingredientes]),
+  );
+  return evitar;
+}
+
 export function useEscaneo(): ServicioEscaneo {
   const db = useSQLiteContext();
-  return useMemo(() => new ServicioEscaneo(new SqliteProductoRepositorio(db), catalogo), [db]);
+  return useMemo(() => new ServicioEscaneo(new SqliteProductoRepositorio(db), catalogo, buscador, makeup), [db]);
 }
 
 /**

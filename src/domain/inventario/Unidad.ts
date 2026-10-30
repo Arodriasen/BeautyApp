@@ -23,20 +23,26 @@ export class Unidad {
 
   readonly id: string;
   readonly productoId: string;
-  readonly fechaCompra?: Date;
+  private _fechaCompra?: Date;
   private _fechaApertura?: Date;
-  readonly caducidadFabricante?: Date;
+  private _caducidadFabricante?: Date;
   private _fechaTerminado?: Date;
 
   constructor(datos: DatosUnidad) {
     this.id = datos.id;
     this.productoId = datos.productoId;
-    this.fechaCompra = datos.fechaCompra && soloFecha(datos.fechaCompra);
+    this._fechaCompra = datos.fechaCompra && soloFecha(datos.fechaCompra);
     this._fechaApertura = datos.fechaApertura && soloFecha(datos.fechaApertura);
-    this.caducidadFabricante = datos.caducidadFabricante && soloFecha(datos.caducidadFabricante);
+    this._caducidadFabricante = datos.caducidadFabricante && soloFecha(datos.caducidadFabricante);
     this._fechaTerminado = datos.fechaTerminado && soloFecha(datos.fechaTerminado);
   }
 
+  get fechaCompra() {
+    return this._fechaCompra;
+  }
+  get caducidadFabricante() {
+    return this._caducidadFabricante;
+  }
   get fechaApertura() {
     return this._fechaApertura;
   }
@@ -55,6 +61,21 @@ export class Unidad {
     this._fechaApertura = soloFecha(fecha);
   }
 
+  /**
+   * Corrige las fechas de un bote (p. ej. si se marcó como abierto el día equivocado).
+   * Quitar la apertura lo deja "sin abrir". No toca la fecha de terminado.
+   */
+  corregirFechas(fechas: Pick<DatosUnidad, 'fechaCompra' | 'fechaApertura' | 'caducidadFabricante'>, hoy: Date): void {
+    const apertura = fechas.fechaApertura && soloFecha(fechas.fechaApertura);
+    if (apertura && apertura > soloFecha(hoy)) throw new Error('La fecha de apertura no puede ser futura');
+    if (apertura && this._fechaTerminado && apertura > this._fechaTerminado) {
+      throw new Error('La fecha de apertura no puede ser posterior a la de terminado');
+    }
+    this._fechaApertura = apertura;
+    this._fechaCompra = fechas.fechaCompra && soloFecha(fechas.fechaCompra);
+    this._caducidadFabricante = fechas.caducidadFabricante && soloFecha(fechas.caducidadFabricante);
+  }
+
   terminar(fecha: Date): void {
     if (this.terminada) throw new Error('Esta unidad ya está terminada');
     this._fechaTerminado = soloFecha(fecha);
@@ -66,7 +87,7 @@ export class Unidad {
    */
   fechaLimite(pao: Pao | undefined): Date | undefined {
     const porPao = this._fechaApertura && pao ? sumarMeses(this._fechaApertura, pao.meses) : undefined;
-    const candidatas = [porPao, this.caducidadFabricante].filter((f): f is Date => f !== undefined);
+    const candidatas = [porPao, this._caducidadFabricante].filter((f): f is Date => f !== undefined);
     if (candidatas.length === 0) return undefined;
     return new Date(Math.min(...candidatas.map((f) => f.getTime())));
   }

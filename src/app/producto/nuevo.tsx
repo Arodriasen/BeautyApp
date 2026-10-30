@@ -1,19 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ResultadoConNeceser } from '@/application/ServicioEscaneo';
 import { Boton } from '@/components/boton';
-import { Campo } from '@/components/campo';
+import type { TonoSugerido } from '@/application/CatalogoExterno';
+import { BuscadorProducto } from '@/components/buscador-producto';
 import { CamposBote, useCamposBote } from '@/components/campos-bote';
-import { SelectorCategoria } from '@/components/selector-categoria';
-import { SelectorColorTono } from '@/components/selector-color-tono';
+import { CamposProducto, esCategoria, useCamposProducto } from '@/components/campos-producto';
 import { SelectorFoto } from '@/components/selector-foto';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TonosSugeridos } from '@/components/tonos-sugeridos';
 import { Radius, Spacing } from '@/constants/theme';
-import { CATEGORIAS, type Categoria } from '@/domain/productos/Categoria';
-import { useNeceser } from '@/hooks/use-neceser';
+import { useEscaneo, useNeceser } from '@/hooks/use-neceser';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Parámetros que llegan del escáner; todos opcionales (alta a mano = ninguno). */
@@ -28,58 +29,74 @@ type Params = {
   sinConexion?: string;
 };
 
-const esCategoria = (c: string | undefined): c is Categoria => !!c && c in CATEGORIAS;
-
 export default function NuevoProductoScreen() {
   const params = useLocalSearchParams<Params>();
   const neceser = useNeceser();
+  const escaneo = useEscaneo();
   const tema = useTheme();
   const insets = useSafeAreaInsets();
 
-  const [marca, setMarca] = useState(params.marca ?? '');
-  const [nombre, setNombre] = useState(params.nombre ?? '');
-  const [tono, setTono] = useState('');
-  const [colorTono, setColorTono] = useState<string>();
-  const [categoria, setCategoria] = useState<Categoria | undefined>(
-    esCategoria(params.categoria) ? params.categoria : undefined,
-  );
-  const [pao, setPao] = useState(params.pao ?? '');
+  const producto = useCamposProducto({
+    marca: params.marca ?? '',
+    nombre: params.nombre ?? '',
+    categoria: esCategoria(params.categoria) ? params.categoria : undefined,
+    pao: params.pao ?? '',
+  });
   // La del catálogo viene preseleccionada; se puede cambiar por una propia.
   const [foto, setFoto] = useState<string | undefined>(params.imagen);
+  // Código y origen de los datos: del escáner o de la búsqueda por nombre.
+  const [ean, setEan] = useState<string | undefined>(params.ean);
+  const [fuente, setFuente] = useState<string | undefined>(params.fuente);
+  const desdeEscaner = !!params.ean;
+  const [tonos, setTonos] = useState<TonoSugerido[]>();
+  // Del escáner no llegan tonos: se buscan aquí aparte (Makeup API descarga 1,6 MB y no debe frenar el escaneo).
+  useEffect(() => {
+    if (!desdeEscaner) return;
+    let vigente = true;
+    escaneo.buscarTonos(params.marca, params.nombre).then((t) => {
+      if (vigente && t) setTonos(t);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [desdeEscaner, escaneo, params.marca, params.nombre]);
   const bote = useCamposBote();
   const [error, setError] = useState<string>();
   const [guardando, setGuardando] = useState(false);
 
-  const paoHabitual = categoria ? CATEGORIAS[categoria].paoHabitual : null;
-
   async function guardar() {
-    if (!categoria) {
-      setError('Elige una categoría');
-      return;
-    }
-    if (pao.trim() && !/^\d+$/.test(pao.trim())) {
-      setError('El PAO debe ser un número de meses');
+    const r = producto.validar();
+    if ('error' in r) {
+      setError(r.error);
       return;
     }
     setError(undefined);
     setGuardando(true);
     try {
-      await neceser.nuevoProducto({
-        marca,
-        nombre,
-        tono,
-        categoria,
-        ean: params.ean,
-        paoMeses: pao.trim() ? Number(pao) : undefined,
-        foto,
-        colorTono,
-        ...bote.valor,
-      });
+      await neceser.nuevoProducto({ ...r.datos, ean, foto, ...bote.valor });
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setGuardando(false);
     }
+  }
+
+  function elegir(r: ResultadoConNeceser) {
+    if (r.productoId) {
+      router.replace({ pathname: '/producto/[id]', params: { id: r.productoId, yaLoTienes: '1' } });
+      return;
+    }
+    producto.cambiar({
+      marca: r.marca ?? '',
+      nombre: r.nombre ?? '',
+      ...(r.categoria && { categoria: r.categoria }),
+      pao: r.paoMeses ? String(r.paoMeses) : '',
+    });
+    if (r.imagenUrl) setFoto(r.imagenUrl);
+    setEan(r.ean);
+    setFuente(r.fuente);
+    setTonos(r.tonos);
+    setError(undefined);
   }
 
   return (
@@ -88,56 +105,48 @@ export default function NuevoProductoScreen() {
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + Spacing.four }]}>
-          {params.ean && (
+          {!desdeEscaner && <BuscadorProducto onElegir={elegir} />}
+
+          {(ean || fuente) && (
             <ThemedView type="backgroundElement" style={styles.aviso}>
               <View style={styles.flex}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Código {params.ean}
-                </ThemedText>
+                {ean && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Código {ean}
+                  </ThemedText>
+                )}
                 <ThemedText type="small">
-                  {params.fuente
-                    ? `Datos de ${params.fuente}. Revísalos: a veces vienen en otro idioma o incompletos.`
+                  {fuente
+                    ? `Datos de ${fuente}. Revísalos: a veces vienen en otro idioma o incompletos.`
                     : params.sinConexion
                       ? 'Sin conexión: no se ha podido buscar el producto. Rellénalo a mano.'
                       : 'No lo hemos encontrado. Rellénalo y la próxima vez que lo escanees lo reconocerá.'}
                 </ThemedText>
               </View>
+              {!desdeEscaner && ean && (
+                <Pressable onPress={() => setEan(undefined)} hitSlop={8} accessibilityLabel="Quitar el código de barras">
+                  <ThemedText type="small" style={{ color: tema.primary }}>
+                    Quitar código
+                  </ThemedText>
+                </Pressable>
+              )}
             </ThemedView>
           )}
 
-          <Campo
-            etiqueta="Marca"
-            value={marca}
-            onChangeText={setMarca}
-            placeholder="Ej.: Maybelline"
-            autoFocus={!params.marca}
-          />
-          <Campo etiqueta="Nombre" value={nombre} onChangeText={setNombre} placeholder="Ej.: Lash Sensational" />
-          <Campo etiqueta="Tono (opcional)" value={tono} onChangeText={setTono} placeholder="Ej.: 120 Ivory" />
+          {tonos && (
+            <TonosSugeridos
+              tonos={tonos}
+              elegido={producto.valores.colorTono}
+              onElegir={(t) => producto.cambiar({ colorTono: t.color, ...(t.nombre && { tono: t.nombre }) })}
+            />
+          )}
 
-          <View style={styles.seccion}>
-            <ThemedText type="smallBold">Color del tono (opcional)</ThemedText>
-            <SelectorColorTono valor={colorTono} onCambio={setColorTono} />
-          </View>
+          <CamposProducto valores={producto.valores} cambiar={producto.cambiar} />
 
           <View style={styles.seccion}>
             <ThemedText type="smallBold">Foto (opcional)</ThemedText>
             <SelectorFoto valor={foto} onCambio={setFoto} />
           </View>
-
-          <View style={styles.seccion}>
-            <ThemedText type="smallBold">Categoría</ThemedText>
-            <SelectorCategoria valor={categoria} onCambio={setCategoria} />
-          </View>
-
-          <Campo
-            etiqueta="Meses tras abrir (PAO)"
-            value={pao}
-            onChangeText={setPao}
-            keyboardType="number-pad"
-            maxLength={2}
-            placeholder={paoHabitual ? `Si lo dejas vacío: ${paoHabitual} meses` : 'El número del icono del bote abierto'}
-          />
 
           <CamposBote {...bote.props} />
 

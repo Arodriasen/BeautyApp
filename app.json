@@ -2,14 +2,11 @@
   "expo": {
     "name": "Tocador",
     "slug": "BeautyApp",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "beautyapp",
     "userInterfaceStyle": "light",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#9E2B5B",
@@ -18,10 +15,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.arodriasen.beautyapp"
+      "package": "com.arodriasen.tocador",
+      "versionCode": 4
     },
     "plugins": [
       "expo-router",
+      "./plugins/firma-subida",
       [
         "expo-splash-screen",
         {

@@ -1,6 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import type { ResumenProducto, ServicioNeceser } from '@/application/ServicioNeceser';
 import { Boton } from '@/components/boton';
@@ -10,21 +11,39 @@ import { Miniatura } from '@/components/selector-foto';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts, Radius, Spacing } from '@/constants/theme';
-import { CATEGORIAS } from '@/domain/productos/Categoria';
-import { useConsulta } from '@/hooks/use-neceser';
+import { CATEGORIAS, type Familia } from '@/domain/productos/Categoria';
+import { ingredientesEvitados } from '@/domain/productos/Ingredientes';
+import { useConsulta, useEvitar } from '@/hooks/use-neceser';
 import { useTheme } from '@/hooks/use-theme';
 import { uriFoto } from '@/infrastructure/fotos/FotosEnDispositivo';
+import { coincide } from '@/utils/texto';
 
 const cargarResumen = (neceser: ServicioNeceser, hoy: Date) => neceser.resumen(hoy);
 
 const irAEscanear = () => router.push('/producto/escanear');
 const irANuevo = () => router.push('/producto/nuevo');
 
+type Urgencia = 'caducado' | 'caducaPronto';
+
+const FAMILIAS: { valor: Familia | undefined; texto: string }[] = [
+  { valor: undefined, texto: 'Todo' },
+  { valor: 'maquillaje', texto: 'Maquillaje' },
+  { valor: 'cuidado', texto: 'Cuidado' },
+  { valor: 'otros', texto: 'Otros' },
+];
+
+const textoBuscable = ({ producto: p }: ResumenProducto) =>
+  [p.marca, p.nombre, p.tono, CATEGORIAS[p.categoria].nombre].filter(Boolean).join(' ');
+
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 export default function NeceserScreen() {
   const { datos: resumen, cargando } = useConsulta(cargarResumen, undefined);
   const tema = useTheme();
+  const [busqueda, setBusqueda] = useState('');
+  const [familia, setFamilia] = useState<Familia>();
+  const [urgencia, setUrgencia] = useState<Urgencia>();
+  const evitar = useEvitar();
 
   if (cargando) return <ThemedView style={styles.flex} />;
 
@@ -50,33 +69,105 @@ export default function NeceserScreen() {
 
   const caducados = resumen.filter((r) => r.estado.tipo === 'caducado').length;
   const pronto = resumen.filter((r) => r.estado.tipo === 'caducaPronto').length;
+  const visibles = resumen.filter(
+    (r) =>
+      (!familia || CATEGORIAS[r.producto.categoria].familia === familia) &&
+      (!urgencia || r.estado.tipo === urgencia) &&
+      coincide(textoBuscable(r), busqueda),
+  );
+  const hayFiltro = !!(busqueda.trim() || familia || urgencia);
+  const alternarUrgencia = (u: Urgencia) => setUrgencia(urgencia === u ? undefined : u);
+  const quitarFiltros = () => {
+    setBusqueda('');
+    setFamilia(undefined);
+    setUrgencia(undefined);
+  };
 
   return (
     <ThemedView style={styles.flex}>
       <FlatList
-        data={resumen}
+        data={visibles}
         keyExtractor={(r) => r.producto.id}
-        renderItem={({ item }) => <FilaProducto resumen={item} />}
+        renderItem={({ item }) => <FilaProducto resumen={item} evitar={evitar} />}
         contentContainerStyle={styles.lista}
+        keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          caducados + pronto > 0 ? (
-            <View style={styles.resumen}>
-              {caducados > 0 && (
-                <View style={[styles.pastilla, { backgroundColor: tema.caducadoSoft }]}>
-                  <ThemedText type="smallBold" style={{ color: tema.caducado }}>
-                    {plural(caducados, 'caducado', 'caducados')}
-                  </ThemedText>
-                </View>
-              )}
-              {pronto > 0 && (
-                <View style={[styles.pastilla, { backgroundColor: tema.caducaProntoSoft }]}>
-                  <ThemedText type="smallBold" style={{ color: tema.caducaPronto }}>
-                    {plural(pronto, 'caduca pronto', 'caducan pronto')}
-                  </ThemedText>
-                </View>
+          <View style={styles.cabeceraLista}>
+            <View style={[styles.buscador, { backgroundColor: tema.backgroundElement, borderColor: tema.border }]}>
+              <MaterialCommunityIcons name="magnify" size={20} color={tema.textSecondary} />
+              <TextInput
+                value={busqueda}
+                onChangeText={setBusqueda}
+                placeholder="Buscar marca, nombre, tono…"
+                placeholderTextColor={tema.textSecondary}
+                returnKeyType="search"
+                style={[styles.entrada, { color: tema.text }]}
+              />
+              {busqueda.length > 0 && (
+                <Pressable onPress={() => setBusqueda('')} hitSlop={10} accessibilityLabel="Borrar la búsqueda">
+                  <MaterialCommunityIcons name="close-circle" size={18} color={tema.textSecondary} />
+                </Pressable>
               )}
             </View>
-          ) : undefined
+            <View style={styles.chips}>
+              {FAMILIAS.map(({ valor, texto }) => {
+                const activo = familia === valor;
+                return (
+                  <Pressable
+                    key={texto}
+                    onPress={() => setFamilia(valor)}
+                    accessibilityState={{ selected: activo }}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: activo ? tema.primary : tema.backgroundElement,
+                        borderColor: activo ? tema.primary : tema.border,
+                      },
+                    ]}>
+                    <ThemedText type="small" style={{ color: activo ? tema.onPrimary : tema.text }}>
+                      {texto}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {caducados + pronto > 0 && (
+              <View style={styles.resumen}>
+                {caducados > 0 && (
+                  <Pastilla
+                    texto={plural(caducados, 'caducado', 'caducados')}
+                    color={tema.caducado}
+                    fondo={tema.caducadoSoft}
+                    activa={urgencia === 'caducado'}
+                    onPress={() => alternarUrgencia('caducado')}
+                  />
+                )}
+                {pronto > 0 && (
+                  <Pastilla
+                    texto={plural(pronto, 'caduca pronto', 'caducan pronto')}
+                    color={tema.caducaPronto}
+                    fondo={tema.caducaProntoSoft}
+                    activa={urgencia === 'caducaPronto'}
+                    onPress={() => alternarUrgencia('caducaPronto')}
+                  />
+                )}
+              </View>
+            )}
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.sinResultados}>
+            <ThemedText themeColor="textSecondary" style={styles.centrado}>
+              Ningún producto coincide.
+            </ThemedText>
+            {hayFiltro && (
+              <Pressable onPress={quitarFiltros} hitSlop={8}>
+                <ThemedText type="smallBold" style={{ color: tema.primary }}>
+                  Quitar filtros
+                </ThemedText>
+              </Pressable>
+            )}
+          </View>
         }
       />
       <Pressable
@@ -89,10 +180,27 @@ export default function NeceserScreen() {
   );
 }
 
-function FilaProducto({ resumen }: { resumen: ResumenProducto }) {
+/** Etiqueta de urgencia; tocarla filtra la lista (y tocarla otra vez quita el filtro). */
+function Pastilla(props: { texto: string; color: string; fondo: string; activa: boolean; onPress: () => void }) {
+  const { texto, color, fondo, activa, onPress } = props;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: activa }}
+      style={[styles.pastilla, { backgroundColor: activa ? color : fondo }]}>
+      <ThemedText type="smallBold" style={{ color: activa ? '#FFFFFF' : color }}>
+        {texto}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+function FilaProducto({ resumen, evitar }: { resumen: ResumenProducto; evitar: string[] }) {
   const { producto, estado, botesEnUso, botesAbiertos } = resumen;
   const tema = useTheme();
   const subtitulo = [CATEGORIAS[producto.categoria].nombre, producto.tono].filter(Boolean).join(' · ');
+  const contieneEvitados = ingredientesEvitados(producto.ingredientes ?? [], evitar).length > 0;
 
   return (
     <Pressable
@@ -117,6 +225,14 @@ function FilaProducto({ resumen }: { resumen: ResumenProducto }) {
         </ThemedText>
         <EstadoCaducidad estado={estado} abierto={botesAbiertos > 0} />
       </View>
+      {contieneEvitados && (
+        <MaterialCommunityIcons
+          name="alert-circle-outline"
+          size={20}
+          color={tema.caducado}
+          accessibilityLabel="Contiene ingredientes que evitas"
+        />
+      )}
       {botesEnUso > 1 && (
         <View style={[styles.botes, { backgroundColor: tema.primarySoft }]}>
           <ThemedText type="small" style={{ color: tema.primary, fontFamily: Fonts.semibold }}>
@@ -159,11 +275,44 @@ const styles = StyleSheet.create({
     paddingBottom: 104,
     gap: Spacing.two,
   },
+  cabeceraLista: {
+    gap: Spacing.two + Spacing.one,
+    paddingBottom: Spacing.one,
+  },
+  buscador: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radius.pastilla,
+    paddingHorizontal: Spacing.three,
+  },
+  entrada: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 16,
+    paddingVertical: Spacing.two + Spacing.one,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: Radius.pastilla,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + Spacing.half,
+  },
+  sinResultados: {
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.five,
+  },
   resumen: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.two,
-    paddingBottom: Spacing.one,
   },
   pastilla: {
     borderRadius: Radius.pastilla,

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BoteConEstado, ServicioNeceser } from '@/application/ServicioNeceser';
 import { Boton } from '@/components/boton';
 import { BotePao } from '@/components/bote-pao';
+import { SeccionIngredientes } from '@/components/seccion-ingredientes';
 import { SelectorColorTono } from '@/components/selector-color-tono';
 import { elegirDeGaleria, hacerFoto } from '@/components/selector-foto';
 import { TarjetaBote } from '@/components/tarjeta-bote';
@@ -16,7 +17,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Fonts, Radius, Spacing } from '@/constants/theme';
 import { nombreDeColor } from '@/constants/tonos';
 import { CATEGORIAS } from '@/domain/productos/Categoria';
-import { useCompra, useConsulta } from '@/hooks/use-neceser';
+import { useCompra, useConsulta, useIngredientes } from '@/hooks/use-neceser';
 import { useTheme } from '@/hooks/use-theme';
 import { uriFoto } from '@/infrastructure/fotos/FotosEnDispositivo';
 import { elegirFecha } from '@/utils/elegir-fecha';
@@ -39,11 +40,19 @@ export default function DetalleProductoScreen() {
   const insets = useSafeAreaInsets();
   const [enLista, setEnLista] = useState(false);
   const [eligiendoColor, setEligiendoColor] = useState(false);
+  const ingredientes = useIngredientes();
+  const [ajustesIngredientes, setAjustesIngredientes] = useState<{ evitar: string[]; tieneClave: boolean }>({
+    evitar: [],
+    tieneClave: false,
+  });
 
   useFocusEffect(
     useCallback(() => {
       compra.enLista(id).then(setEnLista);
-    }, [compra, id]),
+      ingredientes
+        .obtenerAjustes()
+        .then((a) => setAjustesIngredientes({ evitar: a.evitar, tieneClave: !!a.claveInci }));
+    }, [compra, id, ingredientes]),
   );
 
   if (cargando) return <ThemedView style={styles.flex} />;
@@ -128,7 +137,20 @@ export default function DetalleProductoScreen() {
 
   return (
     <ThemedView style={styles.flex}>
-      <Stack.Screen options={{ title: '' }} />
+      <Stack.Screen
+        options={{
+          title: '',
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push({ pathname: '/producto/editar', params: { id: producto.id } })}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Editar el producto">
+              <MaterialCommunityIcons name="pencil-outline" size={24} color={tema.primary} />
+            </Pressable>
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + Spacing.five }]}>
         {yaLoTienes && (
           <View style={[styles.aviso, { backgroundColor: tema.primarySoft }]}>
@@ -209,6 +231,7 @@ export default function DetalleProductoScreen() {
               etiqueta={enUso.length > 1 ? `Bote ${i + 1}` : undefined}
               onAbrir={() => abrir(bote)}
               onTerminar={() => terminar(bote)}
+              onEditar={() => router.push({ pathname: '/bote/editar', params: { id: bote.unidad.id } })}
               onEliminar={() => eliminarBote(bote)}
             />
           ))}
@@ -251,6 +274,14 @@ export default function DetalleProductoScreen() {
             </View>
           </View>
         )}
+
+        <SeccionIngredientes
+          producto={producto}
+          evitar={ajustesIngredientes.evitar}
+          tieneClave={ajustesIngredientes.tieneClave}
+          onCambio={recargar}
+        />
+
 
         {/* Detalles */}
         <View style={styles.seccion}>

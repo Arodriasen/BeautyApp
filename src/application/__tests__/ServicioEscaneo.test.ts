@@ -50,3 +50,40 @@ describe('ServicioEscaneo', () => {
     expect(r.tipo === 'nuevo' && r.ean.valor).toBe(CODIGO);
   });
 });
+
+describe('buscarTonos', () => {
+  const TONOS = [{ color: '#CF9978', nombre: 'Medium Bronze' }];
+
+  it('pregunta al catálogo de tonos si hay marca y nombre', async () => {
+    const buscarTonos = jest.fn().mockResolvedValue(TONOS);
+    const escaneo = new ServicioEscaneo(new ProductosEnMemoria(), catalogoQueNoSabe, undefined, { buscarTonos });
+    expect(await escaneo.buscarTonos('Maybelline', 'Fit Me Bronzer')).toEqual(TONOS);
+    expect(await escaneo.buscarTonos('Maybelline', ' ')).toBeUndefined();
+    expect(buscarTonos).toHaveBeenCalledTimes(1);
+  });
+
+  it('si el catálogo falla se queda sin tonos', async () => {
+    const escaneo = new ServicioEscaneo(new ProductosEnMemoria(), catalogoQueNoSabe, undefined, {
+      buscarTonos: async () => {
+        throw new Error('sin red');
+      },
+    });
+    expect(await escaneo.buscarTonos('Maybelline', 'Fit Me')).toBeUndefined();
+  });
+});
+
+it('al buscar por nombre marca los productos que ya tiene', async () => {
+  const productos = new ProductosEnMemoria();
+  await productos.guardar(
+    new Producto({ id: 'p1', marca: 'NYX', nombre: 'Epic Wear', categoria: 'delineador', ean: Ean.crear(CODIGO) }),
+  );
+  const escaneo = new ServicioEscaneo(productos, catalogoQueNoSabe, {
+    buscarPorNombre: async () => [
+      { nombre: 'Epic Wear', ean: CODIGO, fuente: 'A' },
+      { nombre: 'Otro', ean: '3600531143459', fuente: 'A' },
+      { nombre: 'Sin código', fuente: 'A' },
+    ],
+  });
+  const res = await escaneo.buscarPorNombre('epic');
+  expect(res.map((x) => x.productoId)).toEqual(['p1', undefined, undefined]);
+});

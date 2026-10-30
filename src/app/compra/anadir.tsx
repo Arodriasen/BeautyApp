@@ -13,13 +13,7 @@ import type { Producto } from '@/domain/productos/Producto';
 import { useCompra, useNeceser } from '@/hooks/use-neceser';
 import { useTheme } from '@/hooks/use-theme';
 import { uriFoto } from '@/infrastructure/fotos/FotosEnDispositivo';
-
-/** Sin tildes ni mayúsculas, para que "serum" encuentre "Sérum". */
-const normalizar = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+import { coincide } from '@/utils/texto';
 
 export default function AnadirDeNeceserScreen() {
   const neceser = useNeceser();
@@ -47,12 +41,9 @@ export default function AnadirDeNeceserScreen() {
     }, [recargar]),
   );
 
-  const filtro = normalizar(busqueda.trim());
-  const visibles = filtro
-    ? productos.filter((p) =>
-        normalizar([p.marca, p.nombre, p.tono, CATEGORIAS[p.categoria].nombre].join(' ')).includes(filtro),
-      )
-    : productos;
+  const visibles = productos.filter((p) =>
+    coincide([p.marca, p.nombre, p.tono, CATEGORIAS[p.categoria].nombre].join(' '), busqueda),
+  );
 
   async function anadir(producto: Producto) {
     if (enLista.has(producto.id)) return;

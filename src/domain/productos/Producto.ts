@@ -1,5 +1,6 @@
 import { CATEGORIAS, type Categoria } from './Categoria';
 import type { Ean } from './Ean';
+import type { AnalisisIngredientes } from './Ingredientes';
 import { Pao } from './Pao';
 
 export interface DatosProducto {
@@ -16,6 +17,10 @@ export interface DatosProducto {
   foto?: string;
   /** Color del tono como '#RRGGBB', para el punto de color de la miniatura. */
   colorTono?: string;
+  /** Lista INCI, en el orden de la caja. */
+  ingredientes?: string[];
+  /** Último análisis de esa lista (se borra si la lista cambia). */
+  analisis?: AnalisisIngredientes;
 }
 
 const HEX = /^#[0-9A-F]{6}$/;
@@ -38,6 +43,8 @@ export class Producto {
   readonly pao?: Pao;
   readonly foto?: string;
   readonly colorTono?: string;
+  readonly ingredientes?: string[];
+  readonly analisis?: AnalisisIngredientes;
 
   constructor(datos: DatosProducto) {
     const marca = datos.marca.trim();
@@ -54,6 +61,8 @@ export class Producto {
     this.pao = datos.pao;
     this.foto = datos.foto || undefined;
     this.colorTono = normalizarColor(datos.colorTono);
+    this.ingredientes = datos.ingredientes?.length ? [...datos.ingredientes] : undefined;
+    this.analisis = datos.analisis;
   }
 
   conFoto(foto: string | undefined): Producto {
@@ -62,6 +71,15 @@ export class Producto {
 
   conColorTono(colorTono: string | undefined): Producto {
     return new Producto({ ...this, colorTono });
+  }
+
+  /** Cambiar la lista invalida el análisis anterior. */
+  conIngredientes(ingredientes: string[] | undefined): Producto {
+    return new Producto({ ...this, ingredientes, analisis: undefined });
+  }
+
+  conAnalisis(analisis: AnalisisIngredientes | undefined): Producto {
+    return new Producto({ ...this, analisis });
   }
 
   /** PAO a aplicar: el del envase o, si no lo tiene, el habitual de su categoría. */

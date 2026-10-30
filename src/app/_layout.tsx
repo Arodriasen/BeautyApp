@@ -54,8 +54,13 @@ export default function RootLayout() {
           <Stack.Screen name="producto/escanear" options={{ title: 'Escanear' }} />
           <Stack.Screen name="producto/nuevo" options={{ title: 'Nuevo producto' }} />
           <Stack.Screen name="producto/[id]" options={{ title: '' }} />
+          <Stack.Screen name="producto/editar" options={{ title: 'Editar producto' }} />
           <Stack.Screen name="bote/nuevo" options={{ title: 'Nuevo bote' }} />
+          <Stack.Screen name="bote/editar" options={{ title: 'Corregir fechas' }} />
           <Stack.Screen name="avisos" options={{ title: 'Avisos' }} />
+          <Stack.Screen name="ajustes/index" options={{ title: 'Ajustes' }} />
+          <Stack.Screen name="ajustes/ingredientes" options={{ title: 'Ingredientes' }} />
+          <Stack.Screen name="producto/ingredientes" options={{ title: 'Ingredientes' }} />
           <Stack.Screen name="compra/anadir" options={{ title: 'Añadir de mi neceser' }} />
         </Stack>
       </ThemeProvider>

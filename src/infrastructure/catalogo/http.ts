@@ -1,3 +1,5 @@
+import { quitarMarcaDelNombre } from './marcas';
+
 const TIEMPO_MAXIMO_MS = 8000;
 
 export const USER_AGENT = 'Tocador/1.0 (app personal)';
@@ -8,10 +10,14 @@ const PAUSA_REINTENTO_MS = 500;
  * GET que devuelve el JSON, `undefined` si es 404, y lanza en cualquier otro fallo.
  * Los errores 5xx se reintentan una vez: Open Beauty Facts da algún 500 suelto.
  */
-export async function getJson<T>(url: string, cabeceras: Record<string, string> = {}): Promise<T | undefined> {
+export async function getJson<T>(
+  url: string,
+  cabeceras: Record<string, string> = {},
+  tiempoMs = TIEMPO_MAXIMO_MS,
+): Promise<T | undefined> {
   for (let intento = 1; ; intento++) {
     const control = new AbortController();
-    const temporizador = setTimeout(() => control.abort(), TIEMPO_MAXIMO_MS);
+    const temporizador = setTimeout(() => control.abort(), tiempoMs);
     try {
       const respuesta = await fetch(url, {
         headers: { Accept: 'application/json', 'User-Agent': USER_AGENT, ...cabeceras },
@@ -30,17 +36,42 @@ export async function getJson<T>(url: string, cabeceras: Record<string, string> 
   }
 }
 
-/** Quita la marca del principio del nombre: "NYX Epic Wear" → "Epic Wear". */
+/** Quita la marca (o sus variantes, "Maybelline New York"…) del principio del nombre. */
 export function quitarMarca(nombre: string, marca: string | undefined): string {
-  if (!marca) return nombre.trim();
-  const n = nombre.trim();
-  if (n.toLowerCase().startsWith(marca.toLowerCase())) {
-    const resto = n.slice(marca.length).replace(/^[\s\-–:·,]+/, '');
-    if (resto) return resto;
-  }
-  return n;
+  return quitarMarcaDelNombre(nombre, marca);
 }
 
 export function soloHttps(url: string | undefined): string | undefined {
   return url?.startsWith('https://') ? url : undefined;
+}
+
+/** Petición JSON que no lanza por el código HTTP: devuelve estado y cuerpo para que decida quien llama. */
+export async function pedirJson(
+  url: string,
+  opciones: { metodo?: 'GET' | 'POST'; cabeceras?: Record<string, string>; cuerpo?: unknown } = {},
+): Promise<{ estado: number; cuerpo: unknown }> {
+  const control = new AbortController();
+  const temporizador = setTimeout(() => control.abort(), TIEMPO_MAXIMO_MS);
+  try {
+    const respuesta = await fetch(url, {
+      method: opciones.metodo ?? 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT,
+        ...(opciones.cuerpo !== undefined && { 'Content-Type': 'application/json' }),
+        ...opciones.cabeceras,
+      },
+      body: opciones.cuerpo !== undefined ? JSON.stringify(opciones.cuerpo) : undefined,
+      signal: control.signal,
+    });
+    let cuerpo: unknown;
+    try {
+      cuerpo = await respuesta.json();
+    } catch {
+      cuerpo = undefined;
+    }
+    return { estado: respuesta.status, cuerpo };
+  } finally {
+    clearTimeout(temporizador);
+  }
 }

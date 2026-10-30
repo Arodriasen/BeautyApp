@@ -16,6 +16,7 @@ interface Props {
   etiqueta?: string;
   onAbrir: () => void;
   onTerminar: () => void;
+  onEditar: () => void;
   onEliminar: () => void;
 }
 
@@ -23,7 +24,7 @@ interface Props {
  * Un bote en uso: su estado, las fechas que importan y una barra con la parte de su vida
  * útil que ya ha pasado desde que se abrió (en el color de su estado).
  */
-export function TarjetaBote({ bote, etiqueta, onAbrir, onTerminar, onEliminar }: Props) {
+export function TarjetaBote({ bote, etiqueta, onAbrir, onTerminar, onEditar, onEliminar }: Props) {
   const tema = useTheme();
   const { unidad, estado } = bote;
   const limite = estado.tipo === 'sinFecha' ? undefined : estado.fechaLimite;
@@ -71,6 +72,14 @@ export function TarjetaBote({ bote, etiqueta, onAbrir, onTerminar, onEliminar }:
         <View style={styles.flex}>
           <Boton titulo="Terminado" variante="secundario" onPress={onTerminar} />
         </View>
+        <Pressable
+          onPress={onEditar}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Corregir las fechas de este bote"
+          style={[styles.papelera, { borderColor: tema.border }]}>
+          <MaterialCommunityIcons name="pencil-outline" size={20} color={tema.primary} />
+        </Pressable>
         <Pressable
           onPress={onEliminar}
           hitSlop={8}

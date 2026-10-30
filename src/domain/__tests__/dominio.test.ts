@@ -1,6 +1,7 @@
 import { Unidad } from '../inventario/Unidad';
 import { Ean } from '../productos/Ean';
 import { Pao } from '../productos/Pao';
+import { ingredientesEvitados, parsearListaInci } from '../productos/Ingredientes';
 import { Producto } from '../productos/Producto';
 import { diasEntre, sumarMeses } from '../shared/fechas';
 
@@ -131,5 +132,30 @@ describe('Producto: color del tono', () => {
     const p = new Producto({ ...base, tono: 'Ruby Woo', foto: 'f.jpg' }).conColorTono('#A3162D');
     expect(p).toMatchObject({ tono: 'Ruby Woo', foto: 'f.jpg', colorTono: '#A3162D' });
     expect(p.conColorTono(undefined).colorTono).toBeUndefined();
+  });
+});
+
+describe('Ingredientes', () => {
+  it('lee la lista de la caja', () => {
+    expect(
+      // El punto final se quita ("Alcohol Denat." → "Alcohol Denat"); no separa ingredientes.
+      parsearListaInci('Ingredients: Aqua, Glycerin; Parfum (Fragrance, Aroma)\n• Linalool, Alcohol Denat.\nAqua.'),
+    ).toEqual(['Aqua', 'Glycerin', 'Parfum (Fragrance, Aroma)', 'Linalool', 'Alcohol Denat']);
+  });
+
+  it('detecta los ingredientes a evitar por fragmento y sin tildes', () => {
+    const lista = ['Aqua', 'Methylparaben', 'Propylparaben', 'Alcohol Denat.', 'Parfum'];
+    expect(ingredientesEvitados(lista, ['paraben', 'ALCOHOL'])).toEqual(['Methylparaben', 'Propylparaben', 'Alcohol Denat.']);
+    expect(ingredientesEvitados(lista, ['  '])).toEqual([]);
+  });
+
+  it('cambiar la lista borra el análisis anterior', () => {
+    const p = new Producto({ id: 'p', marca: 'A', nombre: 'B', categoria: 'serum', ingredientes: ['Aqua'] }).conAnalisis({
+      puntuacion: 8,
+      alergenos: [],
+      fecha: new Date(2026, 9, 16),
+    });
+    expect(p.analisis?.puntuacion).toBe(8);
+    expect(p.conIngredientes(['Aqua', 'Retinol']).analisis).toBeUndefined();
   });
 });

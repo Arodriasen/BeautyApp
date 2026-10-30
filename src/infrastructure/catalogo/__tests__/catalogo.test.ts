@@ -55,7 +55,7 @@ describe('OpenBeautyFacts', () => {
     });
     expect(await new OpenBeautyFacts().buscar(EAN)).toEqual({
       marca: 'NYX',
-      nombre: 'Professional Makeup Epic Wear 01 Black Waterproof Liquid Eyeliner',
+      nombre: 'Epic Wear 01 Black Waterproof Liquid Eyeliner',
       categoria: 'delineador',
       paoMeses: 6,
       imagenUrl: 'https://images.openbeautyfacts.org/images/products/080/089/719/7148/front_nl.8.200.jpg',
@@ -92,7 +92,7 @@ describe('UpcItemDb', () => {
       ],
     });
     expect(await new UpcItemDb().buscar(EAN)).toEqual({
-      marca: 'NYX Professional Makeup',
+      marca: 'NYX',
       nombre: 'Epic Wear Liquid Liner Long-lasting Waterproof Eyeliner - Black',
       categoria: 'delineador',
       imagenUrl: 'https://seguro.example/b.jpg',

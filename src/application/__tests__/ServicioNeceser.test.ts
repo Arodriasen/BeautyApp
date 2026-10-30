@@ -162,3 +162,63 @@ describe('color del tono', () => {
     expect((await servicio.detalle(id, HOY))!.producto).toMatchObject({ colorTono: undefined, tono: 'Ruby Woo' });
   });
 });
+
+describe('editar producto y corregir botes', () => {
+  it('edita los datos conservando foto y botes', async () => {
+    const { servicio, unidades } = crearServicio();
+    const id = await servicio.nuevoProducto({
+      marca: 'Mabelline', nombre: 'Lash', categoria: 'base', foto: 'file:///x.jpg', fechaApertura: fecha('2026-09-01'),
+    });
+    await servicio.editarProducto(id, { marca: 'Maybelline', nombre: 'Lash Sensational', categoria: 'mascara', tono: 'Very Black', paoMeses: 3 });
+
+    const { producto, enUso } = (await servicio.detalle(id, HOY))!;
+    expect(producto).toMatchObject({ marca: 'Maybelline', nombre: 'Lash Sensational', categoria: 'mascara', tono: 'Very Black' });
+    expect(producto.foto).toBeDefined();
+    expect(producto.pao?.meses).toBe(3);
+    expect(unidades.datos.size).toBe(1);
+    // Con el nuevo PAO (3 meses) el bote abierto el 01/09 caduca el 01/12.
+    expect(enUso[0].estado).toMatchObject({ fechaLimite: fecha('2026-12-01') });
+  });
+
+  it('no deja poner un código de barras que ya tiene otro producto', async () => {
+    const { servicio } = crearServicio();
+    await servicio.nuevoProducto({ marca: 'A', nombre: 'Uno', categoria: 'otro', ean: '036000291452' });
+    const id = await servicio.nuevoProducto({ marca: 'B', nombre: 'Dos', categoria: 'otro' });
+    await expect(
+      servicio.editarProducto(id, { marca: 'B', nombre: 'Dos', categoria: 'otro', ean: '036000291452' }),
+    ).rejects.toThrow('Ese código de barras ya es de A Uno');
+  });
+
+  it('mantener su propio código de barras al editar no cuenta como duplicado', async () => {
+    const { servicio } = crearServicio();
+    const id = await servicio.nuevoProducto({ marca: 'A', nombre: 'Uno', categoria: 'otro', ean: '036000291452' });
+    await expect(
+      servicio.editarProducto(id, { marca: 'A', nombre: 'Uno bis', categoria: 'otro', ean: '036000291452' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('corrige las fechas de un bote y puede dejarlo sin abrir', async () => {
+    const { servicio } = crearServicio();
+    const id = await servicio.nuevoProducto({ marca: 'A', nombre: 'B', categoria: 'mascara', fechaApertura: fecha('2026-10-15') });
+    const bote = (await servicio.detalle(id, HOY))!.enUso[0].unidad;
+
+    await servicio.corregirBote(bote.id, { fechaApertura: fecha('2026-08-01'), caducidadFabricante: fecha('2027-05-01') }, HOY);
+    let [b] = (await servicio.detalle(id, HOY))!.enUso;
+    expect(b.unidad).toMatchObject({ fechaApertura: fecha('2026-08-01'), caducidadFabricante: fecha('2027-05-01') });
+    expect(b.estado).toMatchObject({ fechaLimite: fecha('2027-02-01') });
+
+    await servicio.corregirBote(bote.id, {}, HOY);
+    [b] = (await servicio.detalle(id, HOY))!.enUso;
+    expect(b.unidad.abierta).toBe(false);
+  });
+
+  it('rechaza una apertura futura o posterior al terminado', async () => {
+    const { servicio } = crearServicio();
+    const id = await servicio.nuevoProducto({ marca: 'A', nombre: 'B', categoria: 'base', fechaApertura: fecha('2026-09-01') });
+    const bote = (await servicio.detalle(id, HOY))!.enUso[0].unidad;
+    await expect(servicio.corregirBote(bote.id, { fechaApertura: fecha('2026-10-20') }, HOY)).rejects.toThrow('futura');
+
+    await servicio.terminarBote(bote.id, fecha('2026-10-01'));
+    await expect(servicio.corregirBote(bote.id, { fechaApertura: fecha('2026-10-05') }, HOY)).rejects.toThrow('terminado');
+  });
+});

@@ -27,6 +27,23 @@ export interface DatosNuevoProducto extends DatosNuevoBote {
   colorTono?: string;
 }
 
+/** Lo que se puede cambiar de un producto ya creado (la foto va aparte). */
+export interface DatosEdicionProducto {
+  marca: string;
+  nombre: string;
+  categoria: Categoria;
+  tono?: string;
+  colorTono?: string;
+  ean?: string;
+  paoMeses?: number;
+}
+
+export interface FechasBote {
+  fechaCompra?: Date;
+  fechaApertura?: Date;
+  caducidadFabricante?: Date;
+}
+
 export type EstadoProducto = EstadoCaducidad | { tipo: 'terminado' } | { tipo: 'sinBotes' };
 
 export interface ResumenProducto {
@@ -97,6 +114,45 @@ export class ServicioNeceser {
     await this.productos.guardar(producto.conFoto(foto));
     await this.nuevoBote(producto.id, datos);
     return producto.id;
+  }
+
+  /** Cambia los datos de un producto conservando su id, su foto y sus botes. */
+  async editarProducto(productoId: string, datos: DatosEdicionProducto): Promise<void> {
+    const actual = await this.productos.obtener(productoId);
+    if (!actual) throw new Error('El producto no existe');
+    const ean = datos.ean?.trim() ? Ean.crear(datos.ean) : undefined;
+    if (ean) {
+      const otro = await this.productos.buscarPorEan(ean);
+      if (otro && otro.id !== productoId) throw new Error(`Ese código de barras ya es de ${otro.marca} ${otro.nombre}`);
+    }
+    await this.productos.guardar(
+      new Producto({
+        id: productoId,
+        marca: datos.marca,
+        nombre: datos.nombre,
+        categoria: datos.categoria,
+        tono: datos.tono,
+        colorTono: datos.colorTono,
+        ean,
+        pao: datos.paoMeses !== undefined ? Pao.crear(datos.paoMeses) : undefined,
+        foto: actual.foto,
+        ingredientes: actual.ingredientes,
+        analisis: actual.analisis,
+      }),
+    );
+    // El PAO puede haber cambiado, y con él las fechas de los avisos.
+    this.alCambiar();
+  }
+
+  async corregirBote(unidadId: string, fechas: FechasBote, hoy = new Date()): Promise<void> {
+    const unidad = await this.obtenerUnidad(unidadId);
+    unidad.corregirFechas(fechas, hoy);
+    await this.unidades.guardar(unidad);
+    this.alCambiar();
+  }
+
+  async obtenerBote(unidadId: string) {
+    return this.unidades.obtener(unidadId);
   }
 
   async nuevoBote(productoId: string, datos: DatosNuevoBote = {}): Promise<string> {
